@@ -1,0 +1,167 @@
+// 히스토그램에 해당하는 이미지
+let img; // 원본
+let imgG; // 흑백
+let imgS; // 확장
+let imgE; // 평활화
+
+let rHistogram = [];
+let gHistogram = [];
+let bHistogram = [];
+let histogram = [];
+
+// 각 이미지에 대한 히스토그램 배열 추가
+let histogramG = [];
+let histogramS = [];
+let histogramE = [];
+
+function preload() {
+  img = loadImage('img_1.jpg'); // 컬러 이미지 파일의 경로를 지정하세요.
+}
+
+function setup() {
+  createCanvas(1500, 1500);
+  img.resize(256, 256);
+  img.loadPixels();
+
+  for (let i = 0; i < 256; i++) {
+    rHistogram[i] = 0;
+    gHistogram[i] = 0;
+    bHistogram[i] = 0;
+    histogram[i] = 0;
+
+    // 각 이미지에 대한 히스토그램 배열 초기화
+    histogramG[i] = 0;
+    histogramS[i] = 0;
+    histogramE[i] = 0;
+  }
+
+  for (let i = 0; i < img.pixels.length; i += 4) {
+    let r = img.pixels[i];
+    let g = img.pixels[i + 1];
+    let b = img.pixels[i + 2];
+
+    rHistogram[r]++;
+    gHistogram[g]++;
+    bHistogram[b]++;
+  }
+
+  // 컬러 이미지 히스토그램
+  for (let i = 0; i < img.pixels.length; i += 4) {
+    let brightnessValue = (img.pixels[i] + img.pixels[i + 1] + img.pixels[i + 2]) / 3;
+    histogram[floor(brightnessValue)]++;
+  }
+
+  // 흑백 이미지 변환
+  imgG = createImage(256, 256);
+  imgG.loadPixels();
+  for (let i = 0; i < img.pixels.length; i += 4) {
+    let brightnessValue = (img.pixels[i] + img.pixels[i + 1] + img.pixels[i + 2]) / 3;
+    imgG.pixels[i] = brightnessValue;
+    imgG.pixels[i + 1] = brightnessValue;
+    imgG.pixels[i + 2] = brightnessValue;
+    imgG.pixels[i + 3] = 255;
+    
+    // 흑백 이미지에 대한 히스토그램 계산
+    histogramG[floor(brightnessValue)]++;
+  }
+  imgG.updatePixels();
+
+  // 확장 이미지 변환
+  imgS = createImage(256, 256);
+  imgS.loadPixels();
+  for (let i = 0; i < imgG.pixels.length; i += 4) {
+    let brightnessValue = imgG.pixels[i];
+    imgS.pixels[i] = brightnessValue;
+    imgS.pixels[i + 1] = brightnessValue;
+    imgS.pixels[i + 2] = brightnessValue;
+    imgS.pixels[i + 3] = 255;
+
+    // 확장 이미지에 대한 히스토그램 계산
+    histogramS[floor(brightnessValue)]++;
+  }
+  imgS.updatePixels();
+
+  // 평활화 이미지 변환
+  imgE = equalizeImage(imgG, histogramG);
+  imgE.loadPixels();
+
+  background(255);
+  
+  // 원본 이미지 컬러 히스토그램
+  let maxCount = max(rHistogram, gHistogram, bHistogram);
+  stroke(255, 0, 0); // 빨간색으로 R 채널 히스토그램 그리기
+  drawHistogram(rHistogram, maxCount);
+  stroke(0, 255, 0); // 초록색으로 G 채널 히스토그램 그리기
+  drawHistogram(gHistogram, maxCount);
+  stroke(0, 0, 255); // 파란색으로 B 채널 히스토그램 그리기
+  drawHistogram(bHistogram, maxCount);
+
+  // 흑백 이미지 히스토그램
+  let maxCountG = max(histogramG);
+  stroke(0);
+  for (let i = 0; i < histogramG.length; i++) {
+    let x = map(i, 0, 255, 0, 255);
+    let h = map(histogramG[i], 0, maxCountG, 0, 140);
+    line(x, 512, x, 512 - h);
+  }
+
+  // 확장 이미지 히스토그램
+  for (let i = 0; i < histogramS.length; i++) {
+    let x = map(i, 0, 255, 0, 255);
+    let h = map(histogramS[i], 0, maxCountG, 0, 140);
+    line(x, 768, x, 768 - h);
+  }
+  
+  // 평활화 이미지 히스토그램
+  let maxCountE = max(histogramE);
+  stroke(0);
+  for (let i = 0; i < histogramE.length; i++) {
+    let x = map(i, 0, 255, 0, 255);
+    let h = map(histogramE[i], 0, maxCountE, 0, 140);
+    line(x, 1024, x, 1024 - h);
+  }
+
+  // 이미지 위치
+  img.updatePixels();
+  image(img, 256, 0, 256, 256); // 원본 이미지
+  image(imgG, 256, 256, 256, 256); // 흑백 이미지
+  image(imgS, 256, 512, 256, 256); // 확장 이미지
+  image(imgE, 256, 768, 256, 256); // 평활화 이미지
+}
+
+function equalizeImage(image, histogram) {
+  let equalized = createImage(image.width, image.height);
+  equalized.loadPixels();
+  let totalPixels = image.width * image.height;
+   let cumulativeHistogram = Array.from(histogram);
+
+  // 누적 히스토그램 생성
+  for (let i = 1; i < cumulativeHistogram.length; i++) {
+    cumulativeHistogram[i] += cumulativeHistogram[i - 1];
+  }
+  
+  // 이미지 픽셀을 조정하여 평활화 적용
+  for (let i = 0; i < image.pixels.length; i += 4) {
+    let brightness = (image.pixels[i] + image.pixels[i + 1] + image.pixels[i + 2]) / 3;
+    let equalizedValue = (cumulativeHistogram[floor(brightness)] / totalPixels) * 255;
+    equalized.pixels[i] = equalizedValue;
+    equalized.pixels[i + 1] = equalizedValue;
+    equalized.pixels[i + 2] = equalizedValue;
+    equalized.pixels[i + 3] = 255;
+    
+    // 평활화 이미지에 대한 히스토그램 계산
+    histogramE[floor(equalizedValue)]++;
+  }
+  equalized.updatePixels();
+  return equalized;
+}
+
+// 히스토그램 위치 그리기
+function drawHistogram(histogram, maxCount) {
+  for (let i = 0; i < histogram.length; i++) {
+    let x = map(i, 0, 255, 0, 255);
+    let h = map(histogram[i], 0, maxCount, 0, 140);
+    line(x, 256, x, 256 - h);
+  }
+}
+
